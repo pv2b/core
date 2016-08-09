@@ -29,45 +29,14 @@ POSSIBILITY OF SUCH DAMAGE.
 */
 namespace OPNsense\VLAN\Api;
 
-use \OPNsense\Base\ApiControllerBase;
+use \OPNsense\Base\ApiMutableTableModelControllerBase;
 use \OPNsense\VLAN\VLAN;
 use \OPNsense\Core\Config;
 
-class SettingsController extends ApiControllerBase
+class SettingsController extends ApiMutableTableModelControllerBase
 {
-    public function getAction()
-    {
-        $result = array();
-        if ($this->request->isGet()) {
-            $mdlVLAN = new VLAN();
-            $result['vlan'] = $mdlVLAN->getNodes();
-        }
-        return $result;
-    }
-    public function setAction()
-    {
-        $result = array("result"=>"failed");
-        if ($this->request->isPost()) {
-            // load model and update with provided data
-            $mdlVLAN = new VLAN();
-            $mdlVLAN->setNodes($this->request->getPost("vlan"));
-
-            // perform validation
-            $valMsgs = $mdlVLAN->performValidation();
-            foreach ($valMsgs as $field => $msg) {
-                if (!array_key_exists("validations", $result)) {
-                    $result["validations"] = array();
-                }
-                $result["validations"]["general.".$msg->getField()] = $msg->getMessage();
-            }
-
-            // serialize model to config and save
-            if ($valMsgs->count() == 0) {
-                $mdlVLAN->serializeToConfig();
-                Config::getInstance()->save();
-                $result["result"] = "saved";
-            }
-        }
-        return $result;
-    }
+    static protected $internalModelName = 'vlan';
+    static protected $internalModelClass = '\OPNsense\VLAN\VLAN';
+    static protected $gridFields = array('ParentInterface', 'VLANTag', 'Description');
 }
+
