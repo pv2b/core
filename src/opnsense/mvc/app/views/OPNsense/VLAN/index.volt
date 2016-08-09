@@ -27,4 +27,59 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 #}
 
-{# {{ partial("layout_partials/base_form",['fields':generalForm,'id':'frm_GeneralSettings'])}} #}
+<script type="text/javascript">
+
+    $( document ).ready(function() {
+
+        /*************************************************************************************************************
+         * link grid actions
+         *************************************************************************************************************/
+
+        $("#grid-vlans").UIBootgrid(
+            {   search:'/api/vlan/settings/searchItems',
+                get:'/api/vlan/settings/getItems/',
+                set:'/api/vlan/settings/setItems/',
+                add:'/api/vlan/settings/addItems/',
+                del:'/api/vlan/settings/delItems/',
+                toggle:'/api/vlan/settings/toggleItems/'
+            }
+        );
+
+</script>
+
+<div id="vlans" class="tab-pane fade in active">
+    <!-- tab page "vlans" -->
+    <table id="grid-vlans" class="table table-condensed table-hover table-striped table-responsive" data-editDialog="DialogPipe">
+        <thead>
+        <tr>
+            <th data-column-id="origin" data-type="string" data-visible="false">{{ lang._('Origin') }}</th>
+            <th data-column-id="enabled" data-width="6em" data-type="string" data-formatter="rowtoggle">{{ lang._('Enabled') }}</th>
+            <th data-column-id="number" data-type="number"  data-visible="false">{{ lang._('Number') }}</th>
+            <th data-column-id="bandwidth" data-type="number">{{ lang._('Bandwidth') }}</th>
+            <th data-column-id="bandwidthMetric" data-type="string">{{ lang._('Metric') }}</th>
+            <!--<th data-column-id="burst" data-type="number">{{ lang._('Burst') }}</th>--> <!-- disabled, burst does not work -->
+            <th data-column-id="mask" data-type="string">{{ lang._('Mask') }}</th>
+            <th data-column-id="description" data-type="string">{{ lang._('Description') }}</th>
+            <th data-column-id="commands" data-width="7em" data-formatter="commands" data-sortable="false">{{ lang._('Commands') }}</th>
+            <th data-column-id="uuid" data-type="string" data-identifier="true"  data-visible="false">{{ lang._('ID') }}</th>
+        </tr>
+        </thead>
+        <tbody>
+        </tbody>
+        <tfoot>
+        <tr>
+            <td></td>
+            <td>
+                <button data-action="add" type="button" class="btn btn-xs btn-default"><span class="fa fa-plus"></span></button>
+                <button data-action="deleteSelected" type="button" class="btn btn-xs btn-default"><span class="fa fa-trash-o"></span></button>
+            </td>
+        </tr>
+        </tfoot>
+    </table>
+</div>
+
+<div class="col-md-12">
+    <hr/>
+    <button class="btn btn-primary"  id="reconfigureAct" type="button"><b>{{ lang._('Apply') }}</b><i id="reconfigureAct_progress" class=""></i></button>
+    <br/><br/>
+</div>
