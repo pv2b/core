@@ -53,16 +53,12 @@ POSSIBILITY OF SUCH DAMAGE.
     <table id="grid-vlans" class="table table-condensed table-hover table-striped table-responsive" data-editDialog="EditVLAN">
         <thead>
         <tr>
-            <th data-column-id="origin" data-type="string" data-visible="false">{{ lang._('Origin') }}</th>
-            <th data-column-id="enabled" data-width="6em" data-type="string" data-formatter="rowtoggle">{{ lang._('Enabled') }}</th>
-            <th data-column-id="number" data-type="number"  data-visible="false">{{ lang._('Number') }}</th>
-            <th data-column-id="bandwidth" data-type="number">{{ lang._('Bandwidth') }}</th>
-            <th data-column-id="bandwidthMetric" data-type="string">{{ lang._('Metric') }}</th>
-            <!--<th data-column-id="burst" data-type="number">{{ lang._('Burst') }}</th>--> <!-- disabled, burst does not work -->
-            <th data-column-id="mask" data-type="string">{{ lang._('Mask') }}</th>
-            <th data-column-id="description" data-type="string">{{ lang._('Description') }}</th>
+            <th data-column-id="ParentInterface" data-type="string">{{ lang._('Parent Interface') }}</th>
+            <th data-column-id="VLANTag" data-width="6em" data-type="string">{{ lang._('VLAN Tag') }}</th>
+            <th data-column-id="Description" data-type="string">{{ lang._('Description') }}</th>
             <th data-column-id="commands" data-width="7em" data-formatter="commands" data-sortable="false">{{ lang._('Commands') }}</th>
-            <th data-column-id="uuid" data-type="string" data-identifier="true"  data-visible="false">{{ lang._('ID') }}</th>
+
+            <th data-column-id="uuid" data-type="string" data-identifier="true" data-visible="false">{{ lang._('ID') }}</th>
         </tr>
         </thead>
         <tbody>
