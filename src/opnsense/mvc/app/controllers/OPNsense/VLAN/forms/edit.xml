@@ -30,19 +30,19 @@ POSSIBILITY OF SUCH DAMAGE.
 
 <form>
     <field>
-        <id>vlan.general.ParentInterface</id>
+        <id>vlan.ParentInterface</id>
         <label>Parent interface</label>
         <type>dropdown</type>
         <help>Only VLAN capable interfaces will be shown.</help>
     </field>
     <field>
-        <id>vlan.general.VLANTag</id>
+        <id>vlan.VLANTag</id>
         <label>VLAN tag</label>
         <type>text</type>
         <help>802.1Q VLAN tag (between 1 and 4094)</help>
     </field>
     <field>
-        <id>vlan.general.Description</id>
+        <id>vlan.Description</id>
         <label>Description</label>
         <type>text</type>
     </field>
