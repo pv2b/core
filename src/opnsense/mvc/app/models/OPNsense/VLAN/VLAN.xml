@@ -35,7 +35,9 @@ POSSIBILITY OF SUCH DAMAGE.
     </description>
     <items>
         <vlan type="ArrayField">
-            <ParentInterface type="InterfaceField">
+            <ParentInterface type="PhysicalInterfaceField">
+		<JumboCapableOnly>Y</JumboCapableOnly>
+		<IncludeLAGGInterfaces>Y</IncludeLAGGInterfaces>
                 <Required>Y</Required>
             </ParentInterface>
             <VLANTag type="IntegerField">
