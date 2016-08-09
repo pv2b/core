@@ -37,6 +37,6 @@ class IndexController extends \OPNsense\Base\IndexController
         $this->view->title = "VLAN";
         // pick the template to serve to our users.
         $this->view->pick('OPNsense/VLAN/index');
-        $this->view->generalForm = $this->getForm("general");
+        $this->view->formEdit = $this->getForm("edit");
     }
 }

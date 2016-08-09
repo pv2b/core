@@ -37,19 +37,20 @@ POSSIBILITY OF SUCH DAMAGE.
 
         $("#grid-vlans").UIBootgrid(
             {   search:'/api/vlan/settings/searchItems',
-                get:'/api/vlan/settings/getItems/',
-                set:'/api/vlan/settings/setItems/',
-                add:'/api/vlan/settings/addItems/',
-                del:'/api/vlan/settings/delItems/',
-                toggle:'/api/vlan/settings/toggleItems/'
+                get:'/api/vlan/settings/getItem/',
+                set:'/api/vlan/settings/setItem/',
+                add:'/api/vlan/settings/addItem/',
+                del:'/api/vlan/settings/delItem/',
+                toggle:'/api/vlan/settings/toggleItem/'
             }
         );
+    });
 
 </script>
 
 <div id="vlans" class="tab-pane fade in active">
     <!-- tab page "vlans" -->
-    <table id="grid-vlans" class="table table-condensed table-hover table-striped table-responsive" data-editDialog="DialogPipe">
+    <table id="grid-vlans" class="table table-condensed table-hover table-striped table-responsive" data-editDialog="EditVLAN">
         <thead>
         <tr>
             <th data-column-id="origin" data-type="string" data-visible="false">{{ lang._('Origin') }}</th>
@@ -83,3 +84,6 @@ POSSIBILITY OF SUCH DAMAGE.
     <button class="btn btn-primary"  id="reconfigureAct" type="button"><b>{{ lang._('Apply') }}</b><i id="reconfigureAct_progress" class=""></i></button>
     <br/><br/>
 </div>
+
+{# include dialogs #}
+{{ partial("layout_partials/base_dialog",['fields':formEdit,'id':'EditVLAN','label':'Edit VLAN'])}}
