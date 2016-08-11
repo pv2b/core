@@ -49,6 +49,9 @@ POSSIBILITY OF SUCH DAMAGE.
             <Description type="TextField">
                 <Required>N</Required>
             </Description>
+            <VLANInterfaceNumber type="AutoNumberField">
+                <Required>Y</Required>
+            </VLANInterfaceNumber>
         </vlan>
     </items>
 </model>
