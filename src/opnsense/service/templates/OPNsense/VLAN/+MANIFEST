@@ -1,0 +1,8 @@
+name: opnsense-vlan
+version: 0.1
+origin: opnsense/core
+comment: OPNsense VLAN support
+desc: Implement VLAN support
+maintainer: pvz at itassistans.se
+www: https://opnsense.org
+prefix: /
