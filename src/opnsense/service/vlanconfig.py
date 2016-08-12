@@ -90,10 +90,9 @@ for iface in des & cur:
     des_config = desired_interfaces[iface]
     if cur_config != des_config:
         vlandev, vlan = des_config
-        # FIXME I think this part is broken, seems FreeBSD can't reconfigure
-        # a VLAN on the fly like this? Means we need to implement some kind
-        # of call to actually do interface configuration... or maybe we can
-        # just disallow making the changes after creation. Argh.
+        # FreeBSD requires us to remove current VLAN configuration before
+        # changing it, or you get an EBUSY.
+        ifconfig(iface, "-vlandev")
         ifconfig(iface, "vlandev", vlandev, "vlan", vlan)
 
 # Now, observe the above Ascii Venn diagrams and note that we've handled each
