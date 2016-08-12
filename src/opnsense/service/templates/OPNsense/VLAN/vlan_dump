@@ -1,0 +1,5 @@
+{% if helpers.exists('OPNsense.VLAN') %}
+{%   for item in OPNsense.VLAN.vlan %}
+vlan{{ item.VLANInterfaceNumber }} {{ item.ParentInterface }} {{ item.VLANTag }}
+{%   endfor %}
+{% endif %}
