@@ -526,7 +526,7 @@ abstract class BaseModel
             // fetch version migrations
             $versions = array();
             foreach (glob(dirname($class_info->getFileName())."/migrations/M*.php") as $filename) {
-                $version = str_replace('_', '.', explode('.', substr(basename($filename),1))[0]);
+                $version = str_replace('_', '.', explode('.', substr(basename($filename), 1))[0]);
                 $versions[$version] = $filename;
             }
             uksort($versions, "version_compare");
@@ -535,24 +535,33 @@ abstract class BaseModel
                     version_compare($this->internal_model_version, $mig_version, '>=') ) {
                     // execute upgrade action
                     $tmp = explode('.', basename($filename))[0];
-                    $mig_classname = "\\".$class_info->getNamespaceName()."\\migrations\\".$tmp;
+                    $mig_classname = "\\".$class_info->getNamespaceName()."\\Migrations\\".$tmp;
                     $mig_class = new \ReflectionClass($mig_classname);
                     if ($mig_class->getParentClass()->name == 'OPNsense\Base\BaseModelMigration') {
                         $migobj = $mig_class->newInstance();
                         try {
                             $migobj->run($this);
+                            $this->serializeToConfig();
                         } catch (\Exception $e) {
                             $logger->error("failed migrating from version " .
                                 $this->internal_current_model_version .
                                 " to " . $mig_version . " in ".
                                 $class_info->getName() .
-                                " [skipping step]"
-                            );
+                                " [skipping step]");
                         }
                         $this->internal_current_model_version = $mig_version;
                     }
                 }
             }
         }
+    }
+
+    /**
+     * return current version number
+     * @return null|string
+     */
+    public function getVersion()
+    {
+        return $this->internal_current_model_version;
     }
 }
