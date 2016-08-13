@@ -37,15 +37,18 @@ for line in p.stdout:
         vlandev = m.group(2)
         current_interfaces[iface] = vlandev, vlan
 
-# Get the desired interfaces
-desired_interfaces = {}
-for line in file('/tmp/vlan_dump'):
-    iface, vlandev, vlan = line.split()
-    desired_interfaces[iface] = vlandev, vlan
+# Load the desired config from /etc/rc.conf.d/vlan
+# FIXME This parser is just barely smart enough to parse what is emitted
+#       by our templates, and no more.
+rc_conf={}
+for line in file('/etc/rc.conf.d/vlan'):
+    m = match('^\s*(.+)\s*=\s*"(.+)"\s*(#.*)?$', line)
+    if m:
+        rc_conf[m.group(1)] = m.group(2)
 
 # Create sets of the interface names (yay set algebra!)
 cur = set(current_interfaces.keys())
-des = set(desired_interfaces.keys())
+des = set(rc_conf['cloned_interfaces'].split())
 
 #     cur      des      
 #   .--''-...--''--.
@@ -72,8 +75,8 @@ for iface in cur - des:
 # Any interfaces that are desired, but not currently configured, should be
 # created.
 for iface in des - cur:
-    vlan, vlandev = desired_interfaces[iface]
-    ifconfig(iface, "create", "vlandev", vlandev, "vlan", vlan)
+    create_args = rc_conf['create_args_' + iface].split()
+    ifconfig(iface, "create", *create_args)
 
 #     cur      des      
 #   .--''-...--''--.
@@ -87,13 +90,14 @@ for iface in des - cur:
 # if any settings are different.
 for iface in des & cur:
     cur_config = current_interfaces[iface]
-    des_config = desired_interfaces[iface]
-    if cur_config != des_config:
-        vlandev, vlan = des_config
+    create_args = rc_conf['create_args_' + iface].split()
+    des_vlan = create_args[create_args.index('vlan') + 1]
+    des_vlandev = create_args[create_args.index('vlandev') + 1]
+    if cur_config != (des_vlan, des_vlandev):
         # FreeBSD requires us to remove current VLAN configuration before
         # changing it, or you get an EBUSY.
         ifconfig(iface, "-vlandev")
-        ifconfig(iface, "vlandev", vlandev, "vlan", vlan)
+        ifconfig(iface, *create_args)
 
 # Now, observe the above Ascii Venn diagrams and note that we've handled each
 # interface once and only once. Thank you, Mr. Ascii Venn!
