@@ -1,0 +1,12 @@
+{% if helpers.exists('OPNsense.VLAN') %}
+cloned_interfaces="{% for item in OPNsense.VLAN.vlan -%}
+vlan{{ item.VLANInterfaceNumber }}
+{#- Put a space after the interface name unless we're on our last iteration -#}
+{%- if not loop.last %} {% endif -%}
+{%- endfor %}"
+{% for item in OPNsense.VLAN.vlan -%}
+create_args_vlan{{ item.VLANInterfaceNumber
+}}="vlandev {{ item.ParentInterface
+}} vlan {{ item.VLANTag }}"
+{% endfor %}
+{% endif %}
