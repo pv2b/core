@@ -38,5 +38,39 @@ class SettingsController extends ApiMutableTableModelControllerBase
     static protected $internalModelName = 'vlan';
     static protected $internalModelClass = '\OPNsense\VLAN\VLAN';
     static protected $gridFields = array('ParentInterface', 'VLANTag', 'Description');
-}
 
+    // FIXME Code to check for duplicate VLANs. This should actually be in the
+    // model, ideally, not in the API controller.
+
+    private function duplicateVLANCheck($newnode) {
+        $newnodeA = $newnode->getAttributes();
+        $parentInterface = (string)$newnode->ParentInterface;
+        $vlanTag = (string)$newnode->VLANTag;
+        if (array_key_exists("uuid", $newnode->getAttributes())) {
+            $skipUUID = $newnodeA["uuid"];
+        } else {
+            $skipUUID = null;
+        }
+        foreach ($this->getNodes()->sortedBy(array(), false) as $node) {
+            $nodeA = $node->getAttributes();
+            if ($nodeA['uuid'] == $skipUUID) {
+                continue; // don't compare with self
+            }
+            if ((string)$node->ParentInterface != $parentInterface) {
+                continue;
+            }
+            if ((string)$node->VLANTag != $vlanTag) {
+                continue;
+            }
+            return "Cannot set duplicate VLANs.";
+        }
+    }
+
+    protected function setItemActionHook($newnode) {
+        return $this->duplicateVLANCheck($newnode);
+    }
+
+    protected function addItemActionHook($newnode) {
+        return $this->duplicateVLANCheck($newnode);
+    }
+}
