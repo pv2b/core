@@ -1,2 +1,1 @@
-vlan_dump:/tmp/vlan_dump
 rc.conf.d_vlan:/etc/rc.conf.d/vlan
