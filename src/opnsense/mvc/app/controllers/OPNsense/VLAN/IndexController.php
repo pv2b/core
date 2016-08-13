@@ -29,6 +29,7 @@ POSSIBILITY OF SUCH DAMAGE.
 */
 
 namespace OPNsense\VLAN;
+
 class IndexController extends \OPNsense\Base\IndexController
 {
     public function indexAction()

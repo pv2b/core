@@ -30,6 +30,7 @@ POSSIBILITY OF SUCH DAMAGE.
 namespace OPNsense\VLAN\Api;
 
 use \OPNsense\Base\ApiControllerBase;
+
 class ServiceController extends ApiControllerBase
 {
 }

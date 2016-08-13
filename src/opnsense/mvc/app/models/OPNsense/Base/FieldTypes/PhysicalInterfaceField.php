@@ -32,6 +32,7 @@
 namespace OPNsense\Base\FieldTypes;
 
 use Phalcon\Validation\Validator\InclusionIn;
+
 require_once("interfaces.inc");
 require_once("util.inc");
 

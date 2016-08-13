@@ -42,7 +42,8 @@ class SettingsController extends ApiMutableTableModelControllerBase
     // FIXME Code to check for duplicate VLANs. This should actually be in the
     // model, ideally, not in the API controller.
 
-    private function duplicateVLANCheck($newnode) {
+    private function duplicateVLANCheck($newnode)
+    {
         $newnodeA = $newnode->getAttributes();
         $parentInterface = (string)$newnode->ParentInterface;
         $vlanTag = (string)$newnode->VLANTag;
@@ -66,11 +67,13 @@ class SettingsController extends ApiMutableTableModelControllerBase
         }
     }
 
-    protected function setItemActionHook($newnode) {
+    protected function setItemActionHook($newnode)
+    {
         return $this->duplicateVLANCheck($newnode);
     }
 
-    protected function addItemActionHook($newnode) {
+    protected function addItemActionHook($newnode)
+    {
         return $this->duplicateVLANCheck($newnode);
     }
 }
