@@ -4,6 +4,7 @@
         var data_get_map = {'frm_Settings':"/api/interfacesettings/settings/get"};
         mapDataToFormUI(data_get_map).done(function(data){
             // place actions to run after load, for example update form styles.
+            $('.selectpicker').selectpicker('refresh');
         });
 
         // link save button to API set action
