@@ -26,13 +26,11 @@
  *    POSSIBILITY OF SUCH DAMAGE.
  *
  */
-namespace tests\OPNsense\Base\BaseModel;
 
-use OPNsense\Base\BaseModel;
+namespace OPNsense\Proxy\Migrations;
 
-/**
- * Class TestModel
- */
-class TestModel extends BaseModel
+use OPNsense\Base\BaseModelMigration;
+
+class M1_0_0 extends BaseModelMigration
 {
 }
