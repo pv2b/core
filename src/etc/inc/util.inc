@@ -948,13 +948,12 @@ function get_interface_list($only_active = false)
         }
 
         $dmesg_arr = array();
-        $toput['dmesg'] = null;
         exec("/sbin/dmesg |grep $ifname", $dmesg_arr);
-        if (count($dmesg_arr) > 0) {
-            preg_match_all("/<(.*?)>/i", $dmesg_arr[0], $dmesg);
-            if (isset($dmesg[1][0])) {
-                $toput['dmesg'] = $dmesg[1][0];
-            }
+        preg_match_all("/<(.*?)>/i", $dmesg_arr[0], $dmesg);
+        if (isset($dmesg[1][0])) {
+            $toput['dmesg'] = $dmesg[1][0];
+        } else {
+            $toput['dmesg'] = null;
         }
 
         $iflist[$ifname] = $toput;
