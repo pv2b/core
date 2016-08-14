@@ -1,0 +1,38 @@
+<model>
+    <mount>//OPNsense/InterfaceSettings</mount>
+    <description>
+        OPNsense Interface Settings
+    </description>
+
+    <items>
+        <DisableHardwareCRC type="BooleanField">
+            <default>0</default>
+            <Required>Y</Required>
+        </DisableHardwareCRC>
+
+        <DisableHardwareTSO type="BooleanField">
+            <default>1</default>
+            <Required>Y</Required>
+        </DisableHardwareTSO>
+
+        <DisableHardwareLRO type="BooleanField">
+            <default>1</default>
+            <Required>Y</Required>
+        </DisableHardwareLRO>
+
+        <VLANHardwareFiltering type="OptionField">
+            <default>enable</default>
+            <Required>Y</Required>
+            <OptionValues>
+                <enable>Enable VLAN Hardware Filtering</enable>
+                <disable>Disable VLAN Hardware Filtering</disable>
+                <default>Leave default</default>
+            </OptionValues>
+        </VLANHardwareFiltering>
+
+        <SuppressARPLogMessages type="BooleanField">
+            <default>0</default>
+            <Required>Y</Required>
+        </SuppressARPLogMessages>
+    </items>
+</model>
