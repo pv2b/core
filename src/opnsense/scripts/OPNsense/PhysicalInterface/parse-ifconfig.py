@@ -4,175 +4,117 @@ import subprocess
 import re
 import json
 import sys
+import socket
+from collections import OrderedDict
 
+# http://stackoverflow.com/a/81899/5403670
+def check_ipv6(n):
+    try:
+        socket.inet_pton(socket.AF_INET6, n)
+        return True
+    except socket.error:
+        return False
 
-_ifconfigRegexes = []
-class IfconfigParser(object):
-    class _IfconfigRegex(object):
-        def __init__(self, *regex_args, **regex_kwargs):
-            self.r = re.compile(*regex_args, **regex_kwargs)
-        def __call__(self, f):
-            _ifconfigRegexes.append((self.r, f))
-            del self.r
-            return f
-
-    @_IfconfigRegex(r'^(.+): flags=[0-9a-f]+<(.*)>(?: metric (\d+))?(?: mtu (\d+))?$')
-    def _parseInterfaceStart(self, m):
-        ifname, flags, metric, mtu = m.groups()
-        self._iface = self._ifaces[ifname] = {'flags': flags.split(',')}
-        if metric:
-            self._iface['metric'] = int(metric)
-        if mtu:
-            self._iface['mtu'] = int(mtu)
-
-    @_IfconfigRegex('^\t'r'options=[0-9a-f]+<(.*)>$')
-    def _parseOptions(self, m):
-        options, = m.groups()
-        self._iface['options'] = options.split(',')
-
-    @_IfconfigRegex('^\t'r'ether ((?:[0-9a-f]{2}:){5}[0-9a-f]{2})$')
-    def _parseEther(self, m):
-        ether, = m.groups()
-        self._iface['ether'] = ether
-
-    # Jamie Zawinski <jwz@netscape.com> wrote on Tue, 12 Aug 1997 13:16:22 -0700:
-    # > Some people, when confronted with a problem, think "I know,
-    # > I'll use regular expressions."  Now they have two problems.
-    #
-    # The regex of this is based on a reading of FreeBSD's
-    # sbin/ifconfig/af_inet6.c:in6_status() function
-    # https://svnweb.freebsd.org/base/releng/10.3/sbin/ifconfig/af_inet6.c?view=markup#l169
-    @_IfconfigRegex('^\\\t'r'''inet6
-        # IPv6 Address with optional interface part for link-local addresses
-        # We don't send back the %-part.
-        \ (?P<addr>[0-9a-f:]+)(?:%.+)?
-        # Optional destination address
-        (?:\ -->\ (?P<dstaddr>[0-9a-f:]+))?
-        # Prefix length (mandatory)
-        (?:\ prefixlen\ (?P<prefixlen>\d+))
-        # Optional flags (space-separated strings)
-        (?:\ (?P<flags>.+))?
-        # Scope ID (optional)
-        (?:\ scopeid\ (?P<scopeid>0x[0-9a-f]+))?
-        # pltime and vltime (optional but always appear together)
-        # Apparently, there is code in ifconfig (af_inet6.c:sec2str) that is
-        # intended to human-format (1d4h0m57s) the lifetimes here. Right now,
-        # this seems to be disabled, and it just prints out the number of
-        # seconds, but we should handle this anyway. It can also be "infty"
-        # representing infinity.
-        (?:
-            \ pltime\ (?:
-                (?P<pltime_infinity>infty)
-            |
-                (?P<pltime_bareseconds>\d+)
-            |
-                (?:
-                    (?:
-                        (?:
-                            (?:
-                                (?P<pltime_days>\d+)d
-                            )?
-                            (?P<pltime_hours>\d+)h
-                        )?
-                        (?P<pltime_minutes>\d+)m
-                    )?
-                    (?P<pltime_seconds>\d+)s
-                )
-            )
-            \ vltime\ (?:
-                (?P<vltime_infinity>infty)
-            |
-                (?P<vltime_bareseconds>\d+)
-            |
-                (?:
-                    (?:
-                        (?:
-                            (?:
-                                (?P<vltime_days>\d+)d
-                            )?
-                            (?P<vltime_hours>\d+)h
-                        )?
-                        (?P<vltime_minutes>\d+)m
-                    )?
-                    (?P<vltime_seconds>\d+)s
-                )
-            )
-        )?
-        # VHID (for CARP, optional)
-        (?:\ vhid\ (?P<vhid>\d+))?
-        # Seems ifconfig like to leave a trailing space on this line...
-        \ ?$
-    ''', re.VERBOSE)
-    def _parseInet6(self, m):
-        # Whew. That was fun!
-
-        # First, we need to consider that there may be more than one
-        # address. So let's create the address object and add it to
-        # self._iface['inet6'], making an empty list first if needed.
-        inet6 = {}
-        self._iface.setdefault('inet6', []).append(inet6)
-        
-        # Okay, with that out of the way, we can start setting stuff on
-        # inet6, going in the same order as the regex to keep things
-        # as sane as possible given the circumstances.
-
-        g = m.groupdict()
-
-        def _copy(key, convert=str):
-            value = g[key]
-            if value is not None:
-                inet6[key] = value
-
-        _copy('addr')
-        _copy('dstaddr')
-        _copy('prefixlen', int) # decimal...
-        
-        # Flags needs some special treatment. They are space-separated.
-        if g['flags'] is not None:
-            inet6['flags'] = g['flags'].split()
-
-        _copy('scopeid', lambda x:int(x,16)) # hexadecimal...
-        
-        # Handle pltime and vltime...
-        def _handle_ltime(key):
-            if g[key+'_infinity'] == 'infty':
-                # I would like to have used infinity here, but that's not in
-                # the JSON spec, besides, this is an integer not a float.
-                inet6[key] = -1
-            elif g[key+'_bareseconds'] is not None:
-                inet6[key] = int(g[key+'_bareseconds'])
-            elif g[key+'_seconds'] is not None:
-                inet6[key] = int(g[key+'_days'] or '0')*24*60*60 \
-                           + int(g[key+'_hours'] or '0')  *60*60 \
-                           + int(g[key+'_minutes'] or '0')   *60 \
-                           + int(g[key+'_seconds'] or '0')
-            # And if we don't find any of those, we simply don't set it!
-
-        _handle_ltime('pltime')
-        _handle_ltime('vltime')
-
-        _copy('vhid', int) # decimal
-
-    def update(self):
-        p = subprocess.Popen(['/sbin/ifconfig', '-av'], stdout=subprocess.PIPE)
-        self._ifaces = {}
-        self._iface = None
-        for line in p.stdout:
-            for regex, callback in _ifconfigRegexes:
-                m = regex.match(line)
-                if m:
-                    callback(self, m)
-                    break
+def get_ifconfig(raw_output=False):
+    def _ifstart():
+        m = re.search(r'\bflags=[0-9a-f]+<(.+)>', line)
+        if m:
+            iface['flags'] = m.group(1).lower().split(',')
+        m = re.search(r'\bmetric (\d+)', line)
+        if m:
+            iface['metric'] = int(m.group(1))
+        m = re.search(r'\bmtu (\d)', line)
+        if m:
+            iface['mtu'] = int(m.group(1))
+    def _parse_ether():
+        m = re.search(r'\bether ((?:[0-9a-f]{2}:){5}[0-9a-f]{2})', line)
+        if m:
+            iface['ether'] = m.group(1)
+    def _parse_options():
+        m = re.search(r'\boptions=[0-9a-f]+<(.+)>', line)
+        if m:
+            iface['options'] = m.group(1).lower().split(',')
+    def _parse_groups():
+        m = re.search(r'\bgroups: (.*)', line)
+        if m:
+            iface['groups'] = m.group(1).split()
+    def _parse_inet6():
+        # We ignore the %-part that comes after link-local addresses...
+        # Should we do this or just pass this though? Not sure.
+        m = re.search(r'\binet6 ([0-9a-f:]+)(%\w+)?\b', line)
+        if not m:
+            return
+        addr = m.group(1)
+        # Check that this is actually an IPv6 address, because doing it
+        # with a regex is way too hard.
+        if not check_ipv6(addr):
+            return
+        if 'inet6' not in iface:
+            iface['inet6'] = OrderedDict()
+        inet6 = iface['inet6'][addr] = OrderedDict()
+        m = re.search(r'\b--> ([0-9a-f]+)(%\w+)?\b', line)
+        if m:
+            dstaddr = m.group(1)
+            if check_ipv6(dstaddr):
+                inet6['dstaddr'] = m.group(1)
+        m = re.search(r'\bprefixlen (\d+)\b', line)
+        if m:
+            inet6['prefixlen'] = int(m.group(1))
+        for flag in ['anycast', 'tentative', 'duplicated', 'detached',
+                     'deprecated', 'autoconf', 'temporary', 'prefer_source']:
+            if re.search(r'\b' + flag + r'\b', line) != None:
+                if not 'flags' in inet6:
+                    inet6['flags'] = []
+                inet6['flags'].add(flag)
+        m = re.search(r'\bscopeid (0x[0-9a-f]+)\b', line)
+        if m:
+            inet6['scopeid'] = int(m.group(1), 16)
+        m = re.search(r'\bpltime (\d+|infty)\b', line)
+        if m:
+            t = m.group(1)
+            if t == 'infty':
+                t = -1
             else:
-                self._iface.setdefault('unparsable', []).append(line)
-        return self.get()
+                t = int(t)
+            inet6['pltime'] = t
+        m = re.search(r'\bvltime (\d+|infty)\b', line)
+        if m:
+            t = m.group(1)
+            if t == 'infty':
+                t = -1
+            else:
+                t = int(t)
+            inet6['vltime'] = t
+        m = re.search(r'\bvhid (\d+)\b', line)
+        if m:
+            inet6['vhid'] = int(m.group(1))
 
-    def get(self):
-        return self._ifaces
+        
+    p = subprocess.Popen(['/sbin/ifconfig', '-av'], stdout=subprocess.PIPE)
+    ifaces = OrderedDict()
+    iface = None
+    re_ifstart = re.compile('^(\w+):')
+    re_ifinfo = re.compile('^\t(\w+)')
+    for line in p.stdout:
+        m = re_ifinfo.match(line)
+        if m:
+            category = m.group(1)
+            parsefuncname = '_parse_' + category
+            if parsefuncname in locals():
+                locals()[parsefuncname]()
+            if raw_output:
+                iface['raw_ifconfig'].append(line.strip())
+            continue
+        m = re_ifstart.match(line)
+        if m:
+            ifname = m.group(1)
+            if ifname in ifaces:
+                raise Exception('Duplicate interface name %r!' % ifname)
+            iface = ifaces[ifname] = OrderedDict()
+            if raw_output:
+                iface['raw_ifconfig'] = [line.strip()]
+            _ifstart()
+    return ifaces
 
-ifaces = IfconfigParser().update()
+ifaces = get_ifconfig(True)
 json.dump(ifaces, sys.stdout, indent=4)
-for iface in ifaces.values():
-    if 'unparsable' in iface:
-        for unp in iface['unparsable']:
-            sys.stdout.write(unp)
