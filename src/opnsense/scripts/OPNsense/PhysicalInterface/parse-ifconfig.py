@@ -9,26 +9,18 @@ import struct
 from collections import OrderedDict
 from DataExtractor import DataExtractor
 
-# http://stackoverflow.com/a/81899/5403670
-def check_ipv6(n):
-    try:
-        socket.inet_pton(socket.AF_INET6, n)
-        return True
-    except socket.error:
-        return False
-def check_ipv4(n):
-    try:
-        socket.inet_pton(socket.AF_INET, n)
-        return True
-    except socket.error:
-        return False
+def get_ifconfig(*args, **kwargs):
+    p = subprocess.Popen(['/sbin/ifconfig', '-av'], stdout=subprocess.PIPE)
+    return parse_ifconfig(p.stdout, *args, **kwargs)
 
-def get_ifconfig(output_raw=False, output_unprocessed=False):
+def parse_ifconfig(stream, output_unprocessed=False):
     def _split_options(optstring):
-        if optstring:
-            return optstring.lower().split(',')
-        else:
+        optstring = optstring.strip()
+        if optstring == '':
+            # N.B.: ''.split(',') == [''] # not []
             return []
+        else:
+            return [opt.strip().lower() for opt in optstring.split(',')]
     def _ifstart():
         #if de.extract(r'\s*\bflags=[0-9a-f]+<(.*)>\b\s*'):
         if de.extract(r'\s*\bflags=[0-9a-f]+<(.*)>\s*\b'):
@@ -53,8 +45,11 @@ def get_ifconfig(output_raw=False, output_unprocessed=False):
             return
         addr = de.matches.group(1)
         # Check that this is actually an IPv6 address, because doing it
-        # with a regex is way too hard.
-        if not check_ipv6(addr):
+        # with a regex is way too hard. Also, normalize it.
+        try:
+            n = socket.inet_pton(socket.AF_INET6, addr)
+            addr = socket.inet_ntop(socket.AF_INET6, n)
+        except:
             # If we fail, pretend like the regex didn't actually match
             de.extractfail()
             return
@@ -65,9 +60,11 @@ def get_ifconfig(output_raw=False, output_unprocessed=False):
         inet6['addr'] = addr
         if de.extract(r'\b--> ([0-9a-f]+)(%\w+)?\b'):
             dstaddr = de.matches.group(1)
-            if check_ipv6(dstaddr):
-                inet6['dstaddr'] = m.group(1)
-            else:
+            try:
+                n = socket.inet_pton(socket.AF_INET6, dstaddr)
+                dstaddr = socket.inet_ntop(socket.AF_INET6, n)
+                inet6['dstaddr'] = dstaddr
+            except:
                 # If we fail, pretend like the regex didn't actually match
                 de.extractfail()
         if de.extract(r'\bprefixlen (\d+)\b'):
@@ -104,7 +101,10 @@ def get_ifconfig(output_raw=False, output_unprocessed=False):
         if not de.extract('^\tinet ([0-9\.]+)\s*'):
             return
         addr = de.matches.group(1)
-        if not check_ipv4(addr):
+        try:
+            n = socket.inet_pton(socket.AF_INET, addr)
+            addr = socket.inet_ntop(socket.AF_INET, n)
+        except:
             # If we fail, pretend like the regex didn't actually match
             de.extractfail()
             return
@@ -119,23 +119,30 @@ def get_ifconfig(output_raw=False, output_unprocessed=False):
             inet['netmask'] = socket.inet_ntoa(netmask)
         if de.extract(r'\s*\bbroadcast ([0-9\.]+)\s*\b'):
             bcast = de.matches.group(1)
-            if check_ipv4(bcast):
-                # If we fail, pretend like the regex didn't actually match
+            try:
+                n = socket.inet_pton(socket.AF_INET, bcast)
+                bcast = socket.inet_ntop(socket.AF_INET, n)
                 inet['broadcast'] = bcast
-            else:
+            except:
+                # If we fail, pretend like the regex didn't actually match
                 de.extractfail()
         if de.extract(r'\s*\b--> ([0-9\.]+)\s*\b'):
-            bcast = de.matches.group(1)
-            if check_ipv4(bcast):
+            dstaddr = de.matches.group(1)
+            try:
+                n = socket.inet_pton(socket.AF_INET, dstaddr)
+                dstaddr = socket.inet_ntop(socket.AF_INET, n)
+                inet['dstaddr'] = dstaddr
+            except:
                 # If we fail, pretend like the regex didn't actually match
-                inet['dstaddr'] = bcast
-            else:
                 de.extractfail()
     def _ifinfo_syncpeer():
         if not de.extract('^\tsyncpeer: ([0-9\.]+)\s*'):
             return
         addr = de.matches.group(1)
-        if not check_ipv4(addr):
+        try:
+            n = socket.inet_pton(socket.AF_INET, addr)
+            addr = socket.inet_ntop(socket.AF_INET, n)
+        except:
             # If we fail, pretend like the regex didn't actually match
             de.extractfail()
             return
@@ -146,46 +153,67 @@ def get_ifconfig(output_raw=False, output_unprocessed=False):
         if de.extract(r'\bdefer: (on|off)\b\s*'):
             syncpeer['defer'] = de.matches.group(1) == 'on'
 
-    p = subprocess.Popen(['/sbin/ifconfig', '-av'], stdout=subprocess.PIPE)
     iface = None
     ifaces = []
-    for line in p.stdout:
+    for line in stream:
+        linestrip = line.strip()
+        # Completely skip empty lines
+        if linestrip == '':
+            continue
         de = DataExtractor(line)
-        if output_raw or output_unprocessed:
-            linestrip = line.strip()
         if de.extract('^(\w+):'):
             ifname = de.matches.group(1)
             if ifname in ifaces:
                 raise Exception('Duplicate interface name %r!' % ifname)
             iface = OrderedDict()
-            iface['name'] = ifname
             ifaces += [iface]
-            if output_raw:
-                iface['raw_ifconfig'] = [linestrip]
+            iface['name'] = ifname
             _ifstart()
         else:
-            if not iface:
-                # For some reason we're here before our first interface start
-                # So fake it with a dummy nameless interface
-                iface = OrderedDict()
-                if output_raw:
-                    iface['raw_ifconfig'] = []
-                ifaces += [iface]
-            if output_raw:
-                iface['raw_ifconfig'] += [linestrip]
             if de.extract('^\t(\w+)'):
                 category = de.matches.group(1)
                 parsefuncname = '_ifinfo_' + category
                 if parsefuncname in locals():
+                    if not iface:
+                        # For some reason we're here before our first interface start
+                        # So fake it with a dummy nameless interface
+                        iface = OrderedDict()
+                        ifaces += [iface]
                     locals()[parsefuncname]()
         if output_unprocessed:
             unp = de.unprocessed_stripped()
             if unp:
                 if 'unprocessed' not in iface:
-                    iface['unprocessed'] = OrderedDict()
-                iface['unprocessed'][linestrip] = unp
-                de.illustrate()
+                    iface['unprocessed'] = []
+                u = OrderedDict()
+                u['line'] = linestrip
+                u['unprocessed'] = unp
+                iface['unprocessed'] += [u]
     return ifaces
 
-ifaces = get_ifconfig(False, True)
-json.dump(ifaces, sys.stdout, indent=4)
+if __name__ == '__main__':
+    import argparse
+
+    parser = argparse.ArgumentParser(description=\
+        'Output current FreeBSD interface configuration av JSON')
+    parser.add_argument(
+        '--unprocessed',
+        help='Include unprocessed output in the JSON. Intended as a '\
+             'debugging aid.',
+        action='store_true'
+    )
+    parser.add_argument(
+        '--stdin',
+        help='Reads input from stdin rather than running ifconfig -av. '
+             'Useful for testing.',
+        action='store_true'
+    )
+    a = parser.parse_args()
+    
+    kwargs = { 'output_unprocessed': a.unprocessed }
+    if a.stdin:
+        ifaces = parse_ifconfig(sys.stdin, **kwargs)
+    else:
+        ifaces = get_ifconfig(*kwargs)
+    json.dump(ifaces, sys.stdout, indent=4)
+    print # json.dump does not output a trailing newline
