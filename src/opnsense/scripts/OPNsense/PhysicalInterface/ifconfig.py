@@ -196,19 +196,19 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=\
         'Output current FreeBSD interface configuration av JSON')
     parser.add_argument(
-        '--unprocessed',
+        '-u', '--unprocessed',
         help='Include unprocessed output in the JSON. Intended as a '\
              'debugging aid.',
         action='store_true'
     )
     parser.add_argument(
-        '--stdin',
+        '-s', '--stdin',
         help='Reads input from stdin rather than running ifconfig -av. '
              'Useful for testing.',
         action='store_true'
     )
     parser.add_argument(
-        '--pretty',
+        '-p', '--pretty',
         help='Prettyprint the JSON. This indents the JSON and orders the '\
              'dictionaries in order of appearance in ifconfig.',
         action='store_true'
