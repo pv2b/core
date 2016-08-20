@@ -6,14 +6,13 @@ import json
 import sys
 import socket
 import struct
-from collections import OrderedDict
 from DataExtractor import DataExtractor
 
 def get_ifconfig(*args, **kwargs):
     p = subprocess.Popen(['/sbin/ifconfig', '-av'], stdout=subprocess.PIPE)
     return parse_ifconfig(p.stdout, *args, **kwargs)
 
-def parse_ifconfig(stream, output_unprocessed=False):
+def parse_ifconfig(stream, output_unprocessed=False, dicttype=dict):
     def _split_options(optstring):
         optstring = optstring.strip()
         if optstring == '':
@@ -55,7 +54,7 @@ def parse_ifconfig(stream, output_unprocessed=False):
             return
         if 'inet6' not in iface:
             iface['inet6'] = []
-        inet6 = OrderedDict()
+        inet6 = dicttype()
         iface['inet6'] += [inet6]
         inet6['addr'] = addr
         if de.extract(r'\b--> ([0-9a-f]+)(%\w+)?\b'):
@@ -89,7 +88,7 @@ def parse_ifconfig(stream, output_unprocessed=False):
             inet6['vhid'] = int(m.group(1))
     def _ifinfo_nd6():
         if de.extract(r'\bnd6 options=[0-9a-f]+<(.*)>'):
-            nd6 = iface['nd6'] = OrderedDict()
+            nd6 = iface['nd6'] = dicttype()
             nd6['options'] = _split_options(de.matches.group(1))
     def _ifinfo_status():
         if de.extract('^\tstatus: (.+)$'):
@@ -110,7 +109,7 @@ def parse_ifconfig(stream, output_unprocessed=False):
             return
         if 'inet' not in iface:
             iface['inet'] = []
-        inet = OrderedDict()
+        inet = dicttype()
         inet['addr'] = addr
         iface['inet'] += [inet]
         if de.extract(r'\s*\bnetmask (0x[0-9a-f]{1,8})\s*\b'):
@@ -146,7 +145,7 @@ def parse_ifconfig(stream, output_unprocessed=False):
             # If we fail, pretend like the regex didn't actually match
             de.extractfail()
             return
-        syncpeer = iface['syncpeer'] = OrderedDict()
+        syncpeer = iface['syncpeer'] = dicttype()
         syncpeer['addr'] = addr
         if de.extract(r'\bmaxupd: (\d+)\b\s*'):
             syncpeer['maxupd'] = int(de.matches.group(1))
@@ -165,7 +164,7 @@ def parse_ifconfig(stream, output_unprocessed=False):
             ifname = de.matches.group(1)
             if ifname in ifaces:
                 raise Exception('Duplicate interface name %r!' % ifname)
-            iface = OrderedDict()
+            iface = dicttype()
             ifaces += [iface]
             iface['name'] = ifname
             _ifstart()
@@ -177,7 +176,7 @@ def parse_ifconfig(stream, output_unprocessed=False):
                     if not iface:
                         # For some reason we're here before our first interface start
                         # So fake it with a dummy nameless interface
-                        iface = OrderedDict()
+                        iface = dicttype()
                         ifaces += [iface]
                     locals()[parsefuncname]()
         if output_unprocessed:
@@ -185,7 +184,7 @@ def parse_ifconfig(stream, output_unprocessed=False):
             if unp:
                 if 'unprocessed' not in iface:
                     iface['unprocessed'] = []
-                u = OrderedDict()
+                u = dicttype()
                 u['line'] = linestrip
                 u['unprocessed'] = unp
                 iface['unprocessed'] += [u]
@@ -208,12 +207,26 @@ if __name__ == '__main__':
              'Useful for testing.',
         action='store_true'
     )
+    parser.add_argument(
+        '--pretty',
+        help='Prettyprint the JSON. This indents the JSON and orders the '\
+             'dictionaries in order of appearance in ifconfig.',
+        action='store_true'
+    )
     a = parser.parse_args()
     
-    kwargs = { 'output_unprocessed': a.unprocessed }
+    kwargs = {
+        'output_unprocessed': a.unprocessed,
+    }
+    if a.pretty:
+        from collections import OrderedDict
+        kwargs['dicttype'] = OrderedDict
     if a.stdin:
         ifaces = parse_ifconfig(sys.stdin, **kwargs)
     else:
-        ifaces = get_ifconfig(*kwargs)
-    json.dump(ifaces, sys.stdout, indent=4)
-    print # json.dump does not output a trailing newline
+        ifaces = get_ifconfig(**kwargs)
+    if a.pretty:
+        json.dump(ifaces, sys.stdout, indent=4)
+        print # json.dump does not output a trailing newline
+    else:
+        json.dump(ifaces, sys.stdout, separators=(',', ':'))
