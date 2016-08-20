@@ -37,16 +37,16 @@ def get_ifconfig(output_raw=False, output_unprocessed=False):
             iface['metric'] = int(de.matches.group(1))
         if de.extract(r'\s*\bmtu (\d+)\s*\b'):
             iface['mtu'] = int(de.matches.group(1))
-    def _parse_ether():
+    def _ifinfo_ether():
         if de.extract(r'\bether ((?:[0-9a-f]{2}:){5}[0-9a-f]{2})'):
             iface['ether'] = de.matches.group(1)
-    def _parse_options():
+    def _ifinfo_options():
         if de.extract(r'\boptions=[0-9a-f]+<(.*)>'):
             iface['options'] = _split_options(de.matches.group(1))
-    def _parse_groups():
+    def _ifinfo_groups():
         if de.extract(r'\bgroups: (.*)'):
             iface['groups'] = de.matches.group(1).split()
-    def _parse_inet6():
+    def _ifinfo_inet6():
         # We ignore the %-part that comes after link-local addresses...
         # Should we do this or just pass this though? Not sure.
         if not de.extract(r'\binet6 ([0-9a-f:]+)(%\w+)?\b'):
@@ -55,15 +55,21 @@ def get_ifconfig(output_raw=False, output_unprocessed=False):
         # Check that this is actually an IPv6 address, because doing it
         # with a regex is way too hard.
         if not check_ipv6(addr):
+            # If we fail, pretend like the regex didn't actually match
             de.extractfail()
             return
         if 'inet6' not in iface:
-            iface['inet6'] = OrderedDict()
-        inet6 = iface['inet6'][addr] = OrderedDict()
+            iface['inet6'] = []
+        inet6 = OrderedDict()
+        iface['inet6'] += [inet6]
+        inet6['addr'] = addr
         if de.extract(r'\b--> ([0-9a-f]+)(%\w+)?\b'):
             dstaddr = de.matches.group(1)
             if check_ipv6(dstaddr):
                 inet6['dstaddr'] = m.group(1)
+            else:
+                # If we fail, pretend like the regex didn't actually match
+                de.extractfail()
         if de.extract(r'\bprefixlen (\d+)\b'):
             inet6['prefixlen'] = int(de.matches.group(1))
         for flag in ['anycast', 'tentative', 'duplicated', 'detached',
@@ -84,26 +90,29 @@ def get_ifconfig(output_raw=False, output_unprocessed=False):
         m = re.search(r'\bvhid (\d+)\b', line)
         if m:
             inet6['vhid'] = int(m.group(1))
-    def _parse_nd6():
+    def _ifinfo_nd6():
         if de.extract(r'\bnd6 options=[0-9a-f]+<(.*)>'):
             nd6 = iface['nd6'] = OrderedDict()
             nd6['options'] = _split_options(de.matches.group(1))
-    def _parse_status():
+    def _ifinfo_status():
         if de.extract('^\tstatus: (.+)$'):
             iface['status'] = de.matches.group(1)
-    def _parse_media():
+    def _ifinfo_media():
         if de.extract('^\tmedia: (.+)$'):
             iface['media'] = de.matches.group(1)
-    def _parse_inet():
+    def _ifinfo_inet():
         if not de.extract('^\tinet ([0-9\.]+)\s*'):
             return
         addr = de.matches.group(1)
         if not check_ipv4(addr):
+            # If we fail, pretend like the regex didn't actually match
             de.extractfail()
             return
         if 'inet' not in iface:
-            iface['inet'] = OrderedDict()
-        inet = iface['inet'][addr] = OrderedDict()
+            iface['inet'] = []
+        inet = OrderedDict()
+        inet['addr'] = addr
+        iface['inet'] += [inet]
         if de.extract(r'\s*\bnetmask (0x[0-9a-f]{1,8})\s*\b'):
             # Why does FreeBSD need to throw us a hexadecimal oddball here???
             netmask = struct.pack('!L', int(de.matches.group(1), 16))
@@ -111,14 +120,23 @@ def get_ifconfig(output_raw=False, output_unprocessed=False):
         if de.extract(r'\s*\bbroadcast ([0-9\.]+)\s*\b'):
             bcast = de.matches.group(1)
             if check_ipv4(bcast):
+                # If we fail, pretend like the regex didn't actually match
                 inet['broadcast'] = bcast
             else:
                 de.extractfail()
-    def _parse_syncpeer():
+        if de.extract(r'\s*\b--> ([0-9\.]+)\s*\b'):
+            bcast = de.matches.group(1)
+            if check_ipv4(bcast):
+                # If we fail, pretend like the regex didn't actually match
+                inet['dstaddr'] = bcast
+            else:
+                de.extractfail()
+    def _ifinfo_syncpeer():
         if not de.extract('^\tsyncpeer: ([0-9\.]+)\s*'):
             return
         addr = de.matches.group(1)
         if not check_ipv4(addr):
+            # If we fail, pretend like the regex didn't actually match
             de.extractfail()
             return
         syncpeer = iface['syncpeer'] = OrderedDict()
@@ -129,31 +147,43 @@ def get_ifconfig(output_raw=False, output_unprocessed=False):
             syncpeer['defer'] = de.matches.group(1) == 'on'
 
     p = subprocess.Popen(['/sbin/ifconfig', '-av'], stdout=subprocess.PIPE)
-    ifaces = OrderedDict()
     iface = None
+    ifaces = []
     for line in p.stdout:
         de = DataExtractor(line)
+        if output_raw or output_unprocessed:
+            linestrip = line.strip()
         if de.extract('^(\w+):'):
             ifname = de.matches.group(1)
             if ifname in ifaces:
                 raise Exception('Duplicate interface name %r!' % ifname)
-            iface = ifaces[ifname] = OrderedDict()
+            iface = OrderedDict()
+            iface['name'] = ifname
+            ifaces += [iface]
             if output_raw:
-                iface['raw_ifconfig'] = [line.strip()]
+                iface['raw_ifconfig'] = [linestrip]
             _ifstart()
-        elif de.extract('^\t(\w+)'):
-            category = de.matches.group(1)
-            parsefuncname = '_parse_' + category
-            if parsefuncname in locals():
-                locals()[parsefuncname]()
+        else:
+            if not iface:
+                # For some reason we're here before our first interface start
+                # So fake it with a dummy nameless interface
+                iface = OrderedDict()
+                if output_raw:
+                    iface['raw_ifconfig'] = []
+                ifaces += [iface]
             if output_raw:
-                iface['raw_ifconfig'] += [line.strip()]
+                iface['raw_ifconfig'] += [linestrip]
+            if de.extract('^\t(\w+)'):
+                category = de.matches.group(1)
+                parsefuncname = '_ifinfo_' + category
+                if parsefuncname in locals():
+                    locals()[parsefuncname]()
         if output_unprocessed:
             unp = de.unprocessed_stripped()
             if unp:
                 if 'unprocessed' not in iface:
                     iface['unprocessed'] = OrderedDict()
-                iface['unprocessed'][line.strip()] = unp
+                iface['unprocessed'][linestrip] = unp
                 de.illustrate()
     return ifaces
 
